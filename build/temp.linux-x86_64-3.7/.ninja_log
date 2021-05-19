@@ -1,0 +1,14 @@
+# ninja log v5
+4	808	1620615060627800990	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/cuda_version.o	573774c73d64739a
+1	6212	1620615066027830627	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/box_iou_rotated/box_iou_rotated_cpu.o	86b497035dd06195
+1	6636	1620615066451832955	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/cocoeval/cocoeval.o	12519b365385476a
+2	7694	1620615067511838771	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/nms_rotated/nms_rotated_cpu.o	7a84d0b76b8583b1
+2	9282	1620615069099847486	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/ROIAlign/ROIAlign_cpu.o	a824ff6326e88d88
+2	9520	1620615069335848781	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/ROIAlignRotated/ROIAlignRotated_cpu.o	8dff62ff4e773469
+1	24571	1620615084379931321	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/vision.o	c5c54473f6a97b2d
+2	10830	1620615231772738465	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/box_iou_rotated/box_iou_rotated_cuda.o	cd15ccc00b7fdfd9
+3	10917	1620615231860738945	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/ROIAlignRotated/ROIAlignRotated_cuda.o	6d0b3d3b894b4b89
+3	10991	1620615231932739339	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/ROIAlign/ROIAlign_cuda.o	2fc99e65ecbbc7f0
+2	11212	1620615232152740542	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/deformable/deform_conv_cuda_kernel.o	5ebbd815ea9c57f3
+3	11245	1620615232184740717	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/nms_rotated/nms_rotated_cuda.o	9c89775f6d769dbc
+2	14667	1620615235608759437	/home/dy20/OWOD-v2/build/temp.linux-x86_64-3.7/home/dy20/OWOD-v2/detectron2/layers/csrc/deformable/deform_conv_cuda.o	f4457a071183d725
