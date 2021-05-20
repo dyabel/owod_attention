@@ -18,10 +18,31 @@ from fvcore.common.file_io import PathManager
 
 from detectron2.data import MetadataCatalog
 from detectron2.utils import comm
+from detectron2.utils.bbox_overlaps import bbox_overlaps,_recalls,print_recall_summary
 
 from .evaluator import DatasetEvaluator
+from collections.abc import Sequence
 
 np.set_printoptions(threshold=sys.maxsize)
+def set_recall_param(proposal_nums, iou_thrs):
+    """Check proposal_nums and iou_thrs and set correct format."""
+    if isinstance(proposal_nums, Sequence):
+        _proposal_nums = np.array(proposal_nums)
+    elif isinstance(proposal_nums, int):
+        _proposal_nums = np.array([proposal_nums])
+    else:
+        _proposal_nums = proposal_nums
+
+    if iou_thrs is None:
+        _iou_thrs = np.array([0.5])
+    elif isinstance(iou_thrs, Sequence):
+        _iou_thrs = np.array(iou_thrs)
+    elif isinstance(iou_thrs, float):
+        _iou_thrs = np.array([iou_thrs])
+    else:
+        _iou_thrs = iou_thrs
+
+    return _proposal_nums, _iou_thrs
 
 class PascalVOCDetectionEvaluator(DatasetEvaluator):
     """
@@ -90,6 +111,8 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
 
     def reset(self):
         self._predictions = defaultdict(list)  # class name -> list of prediction strings
+        self._predictions[100] = dict()
+        # self._proposals = defaultdict(list)
 
     def update_label_based_on_energy(self, logits, classes):
         if not self.energy_distribution_loaded:
@@ -114,23 +137,33 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
     def process(self, inputs, outputs):
         for input, output in zip(inputs, outputs):
             image_id = input["image_id"]
-            # instances = output["instances"].to(self._cpu_device)
-            proposals = output
-            # boxes = instances.pred_boxes.tensor.numpy()
-            # scores = instances.scores.tolist()
-            # classes = instances.pred_classes.tolist()
-            # logits = instances.logits
-            # classes = self.update_label_based_on_energy(logits, classes)
-            # for box, score, cls in zip(boxes, scores, classes):
-            #     if cls == -100:
-            #         continue
-            #     xmin, ymin, xmax, ymax = box
-            #     The inverse of data loading logic in `datasets/pascal_voc.py`
-                # xmin += 1
-                # ymin += 1
-                # self._predictions[cls].append(
-                #     f"{image_id} {score:.3f} {xmin:.1f} {ymin:.1f} {xmax:.1f} {ymax:.1f}"
-                # )
+            instances = output["instances"].to(self._cpu_device)
+            # print(output.keys())
+            proposals = output['proposals'].to(self._cpu_device)
+            # print(self.proposals[0].proposal_boxes.tensor[0])
+            proposals_per_image = []
+            # for proposal in proposals:
+            pros = dict()
+            for i in range(len(proposals)):
+                proposals_per_image.append(torch.cat([proposals[i].proposal_boxes.tensor[0],proposals[i].objectness_logits]))
+                # print(proposals_per_image)
+            pros[image_id] = torch.stack(proposals_per_image)
+            boxes = instances.pred_boxes.tensor.numpy()
+            scores = instances.scores.tolist()
+            classes = instances.pred_classes.tolist()
+            logits = instances.logits
+            classes = self.update_label_based_on_energy(logits, classes)
+            for box, score, cls in zip(boxes, scores, classes):
+                if cls == -100:
+                    continue
+                xmin, ymin, xmax, ymax = box
+                # The inverse of data loading logic in `datasets/pascal_voc.py`
+                xmin += 1
+                ymin += 1
+                self._predictions[cls].append(
+                    f"{image_id} {score:.3f} {xmin:.1f} {ymin:.1f} {xmax:.1f} {ymax:.1f}"
+                )
+            self._predictions[100].update(pros)
 
     def compute_avg_precision_at_many_recall_level_for_unk(self, precisions, recalls):
         precs = {}
@@ -180,19 +213,72 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
                 wi_at_iou[iou] = 0
         return wi_at_iou
 
+    def compute_rpn_recall(self,proposals,imagesetfile,annopath,):
+        with PathManager.open(imagesetfile,"r") as f:
+            lines = f.readlines()
+        imagenames = [x.strip() for x in lines]
+        recs = {}
+        proposal_nums = (100,300,1000)
+        iou_thrs = 0.5
+        proposal_nums, iou_thrs = set_recall_param(proposal_nums, iou_thrs)
+        for imagename in imagenames:
+            rec = parse_rec_rpn(annopath.format(imagename), tuple(self.known_classes))
+            recs[imagename] = rec
+        img_num = len(recs)
+        assert img_num == len(proposals)
+        all_ious = []
+        for imagename in imagenames:
+            proposals_per_image = proposals[imagename].numpy()
+            print(proposals_per_image.shape[0])
+            # print(proposals_per_image.shape)
+            scores = proposals_per_image[:, 4]
+            sort_idx = np.argsort(scores)[::-1]
+            proposals_per_image = proposals_per_image[sort_idx,:]
+            R = recs[imagename]
+            gt = []
+            for r in R:
+                gt.append(r["bbox"])
+            # print(len(gt))
+            if len(gt) >0:
+                gt = np.stack(gt)
+                prop_num = min(proposals_per_image.shape[0], proposal_nums[-1])
+                ious = bbox_overlaps(gt, proposals_per_image[:prop_num, :4])
+            else:
+                ious = np.zeros((0, proposals_per_image.shape[0]), dtype=np.float32)
+            all_ious.append(ious)
+        all_ious = np.array(all_ious)
+        recalls = _recalls(all_ious, proposal_nums, iou_thrs)
+        print_recall_summary(recalls, proposal_nums, iou_thrs, logger=None)
+        return recalls
+
+        # print(recalls)
+
+
     def evaluate(self):
         """
         Returns:
             dict: has a key "segm", whose value is a dict of "AP", "AP50", and "AP75".
         """
         all_predictions = comm.gather(self._predictions, dst=0)
+        # all_proposals = comm.gather(self._proposals, dst=0)
         if not comm.is_main_process():
             return
         predictions = defaultdict(list)
+        proposals = defaultdict(list)
         for predictions_per_rank in all_predictions:
             for clsid, lines in predictions_per_rank.items():
                 predictions[clsid].extend(lines)
-        del all_predictions
+            proposals.update(predictions_per_rank[100])
+
+            # for k,v in predictions_per_rank[100].items():
+            #     proposals[k] = v
+
+        # for proposals_per_rank in all_proposals:
+        #     for image_id, proposals_per_image in proposals_per_rank.items():
+        #         proposals[image_id] = proposals_per_image
+        # del all_proposals
+
+        rpn_recall = self.compute_rpn_recall(proposals,self._image_set_path,self._anno_file_template)
 
         self._logger.info(
             "Evaluating {} using {} metric. "
@@ -203,6 +289,7 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
 
         with tempfile.TemporaryDirectory(prefix="pascal_voc_eval_") as dirname:
             res_file_template = os.path.join(dirname, "{}.txt")
+            # pro_file = os.path.join(dirname, "proposals.txt")
 
             aps = defaultdict(list)  # iou -> ap per class
             recs = defaultdict(list)
@@ -219,6 +306,8 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
                 self._logger.info(cls_name + " has " + str(len(lines)) + " predictions.")
                 with open(res_file_template.format(cls_name), "w") as f:
                     f.write("\n".join(lines))
+
+
 
                 # for thresh in range(50, 100, 5):
                 thresh = 50
@@ -361,6 +450,47 @@ def parse_rec(filename, known_classes):
 
     return objects
 
+def parse_rec_rpn(filename, known_classes):
+    """Parse a PASCAL VOC xml file."""
+    VOC_CLASS_NAMES_COCOFIED = [
+        "airplane", "dining table", "motorcycle",
+        "potted plant", "couch", "tv"
+    ]
+    BASE_VOC_CLASS_NAMES = [
+        "aeroplane", "diningtable", "motorbike",
+        "pottedplant", "sofa", "tvmonitor"
+    ]
+    try:
+        with PathManager.open(filename) as f:
+            tree = ET.parse(f)
+    except:
+        logger = logging.getLogger(__name__)
+        logger.info('Not able to load: ' + filename + '. Continuing without aboarting...')
+        return None
+
+    objects = []
+    for obj in tree.findall("object"):
+        obj_struct = {}
+        cls_name = obj.find("name").text
+        if cls_name in VOC_CLASS_NAMES_COCOFIED:
+            cls_name = BASE_VOC_CLASS_NAMES[VOC_CLASS_NAMES_COCOFIED.index(cls_name)]
+        if cls_name not in known_classes:
+            continue
+            cls_name = 'unknown'
+        obj_struct["name"] = cls_name
+        # obj_struct["pose"] = obj.find("pose").text
+        # obj_struct["truncated"] = int(obj.find("truncated").text)
+        obj_struct["difficult"] = int(obj.find("difficult").text)
+        bbox = obj.find("bndbox")
+        obj_struct["bbox"] = [
+            int(bbox.find("xmin").text),
+            int(bbox.find("ymin").text),
+            int(bbox.find("xmax").text),
+            int(bbox.find("ymax").text),
+        ]
+        objects.append(obj_struct)
+
+    return objects
 
 def voc_ap(rec, prec, use_07_metric=False):
     """Compute VOC AP given precision and recall. If use_07_metric is true, uses

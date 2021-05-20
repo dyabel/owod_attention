@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125' --config-file ./configs/OWOD/t1/t1_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OWOD.ENABLE_CLUSTERING False OUTPUT_DIR "output/t1_baseline"
-
+CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125' --config-file ./configs/OWOD/t1/t1_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OWOD.ENABLE_CLUSTERING False OWOD.ENABLE_THRESHOLD_AUTOLABEL_UNK False OUTPUT_DIR "output/t1_baseline"
+#
 cp -r /home/dy20/OWOD-v2/output/t1_baseline /home/dy20/OWOD-v2/output/t2_baseline
-
-CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125' --resume --config-file ./configs/OWOD/t2/t2_train_baseline_only_frcnn.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OOWOD.ENABLE_CLUSTERING False GUTPUT_DIR "output/t2_baseline" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_baseline/model_final.pth"
+#
+CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125' --resume --config-file ./configs/OWOD/t2/t2_train_baseline_only_frcnn.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005  OUTPUT_DIR "output/t2_baseline" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_baseline/model_final.pth"
 
 #
 cp -r /home/dy20/OWOD-v2/output/t2_baseline /home/dy20/OWOD-v2/output/t2_ft_baseline

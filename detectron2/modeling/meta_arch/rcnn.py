@@ -150,6 +150,7 @@ class GeneralizedRCNN(nn.Module):
 
         images = self.preprocess_image(batched_inputs)
         if "instances" in batched_inputs[0]:
+            # print(batched_inputs[0]['instances'])
             gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
         else:
             gt_instances = None
@@ -158,6 +159,8 @@ class GeneralizedRCNN(nn.Module):
 
         if self.proposal_generator:
             proposals, proposal_losses = self.proposal_generator(images, features, gt_instances)
+            # print('#'*100)
+            # print(proposals[0]._fields['proposal_boxes'])
         else:
             assert "proposals" in batched_inputs[0]
             proposals = [x["proposals"].to(self.device) for x in batched_inputs]
@@ -202,7 +205,6 @@ class GeneralizedRCNN(nn.Module):
             else:
                 assert "proposals" in batched_inputs[0]
                 proposals = [x["proposals"].to(self.device) for x in batched_inputs]
-
             results, _ = self.roi_heads(images, features, proposals, None)
         else:
             detected_instances = [x.to(self.device) for x in detected_instances]
