@@ -59,6 +59,7 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', eps=1e-6):
 def _recalls(all_ious, proposal_nums, thrs):
 
     img_num = all_ious.shape[0]
+    # print(img_num)
     total_gt_num = sum([ious.shape[0] for ious in all_ious])
 
     _ious = np.zeros((proposal_nums.size, total_gt_num), dtype=np.float32)
@@ -85,6 +86,7 @@ def _recalls(all_ious, proposal_nums, thrs):
     recalls = np.zeros((proposal_nums.size, thrs.size))
     for i, thr in enumerate(thrs):
         recalls[:, i] = (_ious >= thr).sum(axis=1) / float(total_gt_num)
+    # print(recalls)
 
     return recalls
 

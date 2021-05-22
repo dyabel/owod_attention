@@ -5,8 +5,8 @@ from .rotated_coco_evaluation import RotatedCOCOEvaluator
 from .evaluator import DatasetEvaluator, DatasetEvaluators, inference_context, inference_on_dataset
 from .lvis_evaluation import LVISEvaluator
 from .panoptic_evaluation import COCOPanopticEvaluator
-# from .pascal_voc_evaluation import PascalVOCDetectionEvaluator
-from .pascal_voc_evaluation_rpn_recall import PascalVOCDetectionEvaluator
+from .pascal_voc_evaluation import PascalVOCDetectionEvaluator
+# from .pascal_voc_evaluation_rpn_recall import PascalVOCDetectionEvaluator
 from .sem_seg_evaluation import SemSegEvaluator
 from .testing import print_csv_format, verify_results
 

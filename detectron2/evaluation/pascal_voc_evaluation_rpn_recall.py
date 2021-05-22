@@ -229,7 +229,7 @@ class PascalVOCDetectionEvaluator(DatasetEvaluator):
         all_ious = []
         for imagename in imagenames:
             proposals_per_image = proposals[imagename].numpy()
-            print(proposals_per_image.shape[0])
+            # print(proposals_per_image.shape[0])
             # print(proposals_per_image.shape)
             scores = proposals_per_image[:, 4]
             sort_idx = np.argsort(scores)[::-1]
@@ -475,7 +475,7 @@ def parse_rec_rpn(filename, known_classes):
         if cls_name in VOC_CLASS_NAMES_COCOFIED:
             cls_name = BASE_VOC_CLASS_NAMES[VOC_CLASS_NAMES_COCOFIED.index(cls_name)]
         if cls_name not in known_classes:
-            continue
+            # continue
             cls_name = 'unknown'
         obj_struct["name"] = cls_name
         # obj_struct["pose"] = obj.find("pose").text

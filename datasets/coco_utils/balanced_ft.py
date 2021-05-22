@@ -47,14 +47,16 @@ UNK_CLASS = ["unknown"]
 
 # Change this accodingly for each task t*
 known_classes = list(itertools.chain(VOC_CLASS_NAMES, T2_CLASS_NAMES))
-train_files = ['/home/fk1/workspace/OWOD/datasets/VOC2007/ImageSets/Main/t2_train.txt','/home/fk1/workspace/OWOD/datasets/VOC2007/ImageSets/Main/t1_train.txt']
+all_train_files = ['/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t1_train.txt','/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t2_train.txt','/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t3_train.txt','/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t4_train.txt',]
+train_files = all_train_files[:2]
 
 # known_classes = list(itertools.chain(VOC_CLASS_NAMES))
-# train_files = ['/home/fk1/workspace/OWOD/datasets/VOC2007/ImageSets/Main/train.txt']
-annotation_location = '/home/fk1/workspace/OWOD/datasets/VOC2007/Annotations'
+# train_files = ['/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/train.txt']
+annotation_location = '/home/dy20/OWOD-v2/datasets/VOC2007/Annotations'
 
-items_per_class = 20
-dest_file = '/home/fk1/workspace/OWOD/datasets/VOC2007/ImageSets/Main/t2_ft_' + str(items_per_class) + '.txt'
+items_per_class = 60
+# dest_file = '/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t2_ft_' + str(items_per_class) + '.txt'
+dest_file = '/home/dy20/OWOD-v2/datasets/VOC2007/ImageSets/Main/t2_ft_' + str(items_per_class) + '.txt'
 
 file_names = []
 for tf in train_files:

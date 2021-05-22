@@ -168,7 +168,7 @@ class FastRCNNOutputs:
                 class-specific or class-agnostic regression. It stores the predicted deltas that
                 transform proposals into final box detections.
                 B is the box dimension (4 or 5).
-                When B is 4, each row is [dx, dy, dw, dh (, ....)].
+                When B is 4, ea6h row is [dx, dy, dw, dh (, ....)].
                 When B is 5, each row is [dx, dy, dw, dh, da (, ....)].
             proposals (list[Instances]): A list of N Instances, where Instances i stores the
                 proposals for image i, in the field "proposal_boxes".
