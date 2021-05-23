@@ -23,7 +23,7 @@ mkl-fft
 mkl-random
 mock==4.0.3
 mplcursors==0.4
-numpy
+numpy==1.15.4
 oauthlib==3.1.0
 olefile==0.46
 omegaconf==2.0.6

@@ -21,25 +21,25 @@
 
 
 # Task 2
-#cp -r /home/dy20/OWOD-v2/output/t1 /home/dy20/OWOD-v2/output/t2
+cp -r /home/dy20/OWOD-v2/output/t1 /home/dy20/OWOD-v2/output/t2
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52127'  --resume --config-file ./configs/OWOD/t2/t2_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2/model_final.pth"
+
+cp -r /home/dy20/OWOD-v2/output/t2 /home/dy20/OWOD-v2/output/t2_ft
 #
-#CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52127'  --resume --config-file ./configs/OWOD/t2/t2_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2/model_final.pth"
-
-#cp -r /home/dy20/OWOD-v2/output/t2 /home/dy20/OWOD-v2/output/t2_ft
-
-#CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52126'  --resume --config-file ./configs/OWOD/t2/t2_ft.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2_ft" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_ft/model_final.pth"
-
-#CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52133' --config-file ./configs/OWOD/t2/t2_val.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OWOD.TEMPERATURE 1.5 OUTPUT_DIR "./output/t2_final" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_ft/model_final.pth"
+CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52126'  --resume --config-file ./configs/OWOD/t2/t2_ft.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2_ft" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_ft/model_final.pth"
+#
+CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52133' --config-file ./configs/OWOD/t2/t2_val.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OWOD.TEMPERATURE 1.5 OUTPUT_DIR "./output/t2_final" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_ft/model_final.pth"
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --eval-only --config-file ./configs/OWOD/t2/t2_test.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2_final" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t2_ft/model_final.pth"
 
 
 # Task 3
-Path="/home/dy20/OWOD-v2/output/t3"
-if [[  -d "$Path" ]]; then
-  rm -r $Path
-  cp -r /home/dy20/OWOD-v2/output/t2_ft /home/dy20/OWOD-v2/output/t3
-fi
+#Path="/home/dy20/OWOD-v2/output/t3"
+#if [[  -d "$Path" ]]; then
+#  rm -r $Path
+cp -r /home/dy20/OWOD-v2/output/t2_ft /home/dy20/OWOD-v2/output/t3
+#fi
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52127' --resume --config-file ./configs/OWOD/t3/t3_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t3" MODEL.WEIGHTS "/home/dy20/OWOD-v2/output/t3/model_final.pth"
 
