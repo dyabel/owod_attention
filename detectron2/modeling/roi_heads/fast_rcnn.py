@@ -153,6 +153,7 @@ class FastRCNNOutputs:
         pred_class_logits,
         pred_proposal_deltas,
         proposals,
+        prev_intro_cls,
         invalid_class_range,
         smooth_l1_beta=0.0,
         box_reg_loss_type="smooth_l1",
@@ -188,6 +189,7 @@ class FastRCNNOutputs:
         self.box_reg_loss_type = box_reg_loss_type
 
         self.image_shapes = [x.image_size for x in proposals]
+        self.prev_intro_cls = prev_intro_cls
         self.invalid_class_range = invalid_class_range
 
         if len(proposals):
@@ -242,6 +244,7 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
+            # self.pred_class_logits[:, :self.prev_intro_cls] = -10e10
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
             # self.log_logits(self.pred_class_logits, self.gt_classes)
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
@@ -273,7 +276,7 @@ class FastRCNNOutputs:
         # Empty fg_inds produces a valid loss of zero as long as the size_average
         # arg to smooth_l1_loss is False (otherwise it uses torch.mean internally
         # and would produce a nan loss).
-        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind))[0]
+        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind - 1))[0]
         if cls_agnostic_bbox_reg:
             # pred_proposal_deltas only corresponds to foreground class for agnostic
             gt_class_cols = torch.arange(box_dim, device=device)
@@ -549,6 +552,8 @@ class FastRCNNOutputLayers(nn.Module):
             Second tensor: bounding box regression deltas for each box. Shape is shape (N,Kx4),
             or (N,4) for class-agnostic regression.
         """
+        # print(x.size())
+        #torch.Size([512, 2048])
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
         scores = self.cls_score(x)
@@ -679,6 +684,7 @@ class FastRCNNOutputLayers(nn.Module):
             scores,
             proposal_deltas,
             proposals,
+            self.prev_intro_cls,
             self.invalid_class_range,
             self.smooth_l1_beta,
             self.box_reg_loss_type,
@@ -714,9 +720,7 @@ class FastRCNNOutputLayers(nn.Module):
 
     def predict_boxes_for_gt_classes(self, predictions, proposals):
         """
-        Args:
-            predictions: return values of :meth:`forward()`.
-            proposals (list[Instances]): proposals that match the features that were used
+d       proposals (list[Instances]): proposals that match the features that were used
                 to compute predictions. The fields ``proposal_boxes``, ``gt_classes`` are expected.
 
         Returns:
