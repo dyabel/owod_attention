@@ -18,6 +18,9 @@ You may want to write your own script with your datasets and other customization
 
 import logging
 import os
+import sys
+sys.path.append(os.getcwd())
+print(os.getcwd())
 from collections import OrderedDict
 import torch
 
