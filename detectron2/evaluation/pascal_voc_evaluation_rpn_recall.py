@@ -475,8 +475,8 @@ def parse_rec_rpn(filename, known_classes):
         if cls_name in VOC_CLASS_NAMES_COCOFIED:
             cls_name = BASE_VOC_CLASS_NAMES[VOC_CLASS_NAMES_COCOFIED.index(cls_name)]
         if cls_name not in known_classes:
-            # continue
-            cls_name = 'unknown'
+            continue
+            # cls_name = 'unknown'
         obj_struct["name"] = cls_name
         # obj_struct["pose"] = obj.find("pose").text
         # obj_struct["truncated"] = int(obj.find("truncated").text)

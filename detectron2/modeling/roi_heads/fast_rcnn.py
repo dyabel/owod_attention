@@ -153,6 +153,7 @@ class FastRCNNOutputs:
         pred_class_logits,
         pred_proposal_deltas,
         proposals,
+        num_classes,
         prev_intro_cls,
         invalid_class_range,
         smooth_l1_beta=0.0,
@@ -190,6 +191,7 @@ class FastRCNNOutputs:
 
         self.image_shapes = [x.image_size for x in proposals]
         self.prev_intro_cls = prev_intro_cls
+        self.num_classes = num_classes
         self.invalid_class_range = invalid_class_range
 
         if len(proposals):
@@ -245,6 +247,14 @@ class FastRCNNOutputs:
         else:
             self._log_accuracy()
             # self.pred_class_logits[:, :self.prev_intro_cls] = -10e10
+            prev_cls_pred =  torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
+            # gt_is_bg = self.gt_classes.eq(self.num_classes)
+            gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
+            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
+            # print(len(self.gt_classes),exclude_for_cross_entropy.sum())
+
+            self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
+            self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
             # self.log_logits(self.pred_class_logits, self.gt_classes)
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
@@ -684,6 +694,7 @@ class FastRCNNOutputLayers(nn.Module):
             scores,
             proposal_deltas,
             proposals,
+            self.num_classes,
             self.prev_intro_cls,
             self.invalid_class_range,
             self.smooth_l1_beta,
