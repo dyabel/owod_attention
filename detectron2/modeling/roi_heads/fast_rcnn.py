@@ -246,17 +246,7 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
-            # self.pred_class_logits[:, :self.prev_intro_cls] = -10e10
-            prev_cls_pred =  torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
-            # gt_is_bg = self.gt_classes.eq(self.num_classes)
-            gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-            # print(len(self.gt_classes),exclude_for_cross_entropy.sum())
-
-            self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
-            self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
-            # self.log_logits(self.pred_class_logits, self.gt_classes)
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
 
     def log_logits(self, logits, cls):
@@ -286,7 +276,7 @@ class FastRCNNOutputs:
         # Empty fg_inds produces a valid loss of zero as long as the size_average
         # arg to smooth_l1_loss is False (otherwise it uses torch.mean internally
         # and would produce a nan loss).
-        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind - 1))[0]
+        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind))[0]
         if cls_agnostic_bbox_reg:
             # pred_proposal_deltas only corresponds to foreground class for agnostic
             gt_class_cols = torch.arange(box_dim, device=device)
