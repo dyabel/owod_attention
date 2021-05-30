@@ -446,7 +446,7 @@ class Res5ROIHeads(ROIHeads):
         data = (features, gt_classes)
         print('#'*100)
         print('save features')
-        location = '/home/dy20/OWOD-v2/output/features/' + shortuuid.uuid() + '.pkl'
+        location = '/home/dy20/owod_attention/output/features/' + shortuuid.uuid() + '.pkl'
         torch.save(data, location)
 
     def compute_energy(self, predictions, proposals):
@@ -471,6 +471,8 @@ class Res5ROIHeads(ROIHeads):
         box_features = self._shared_roi_transform(
             [features[f] for f in self.in_features], proposal_boxes
         )
+        #print(box_features.size())
+        #torch.Size([512, 2048, 7, 7])
         input_features = box_features.mean(dim=[2, 3])
         predictions = self.box_predictor(input_features)
 

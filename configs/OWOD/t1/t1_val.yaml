@@ -6,7 +6,7 @@ DATASETS:
   TEST: ('voc_coco_2007_val', )   # voc_coco_2007_test
 SOLVER:
   STEPS: (12000, 16000)
-  MAX_ITER: 300
+  MAX_ITER: 500
   WARMUP_ITERS: 0
 OUTPUT_DIR: "./output/temp_3"
 OWOD:
@@ -16,4 +16,5 @@ OWOD:
   ENERGY_SAVE_PATH: 'energy'
   SKIP_TRAINING_WHILE_EVAL: False
   ENABLE_CLUSTERING: False
+#  ENABLE_ATTENTION: False
   TEMPERATURE: 1.5

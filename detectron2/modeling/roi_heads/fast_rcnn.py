@@ -153,6 +153,8 @@ class FastRCNNOutputs:
         pred_class_logits,
         pred_proposal_deltas,
         proposals,
+        num_classes,
+        prev_intro_cls,
         invalid_class_range,
         smooth_l1_beta=0.0,
         box_reg_loss_type="smooth_l1",
@@ -186,6 +188,8 @@ class FastRCNNOutputs:
         self.pred_proposal_deltas = pred_proposal_deltas
         self.smooth_l1_beta = smooth_l1_beta
         self.box_reg_loss_type = box_reg_loss_type
+        self.prev_intro_cls = prev_intro_cls
+        self.num_classes = num_classes
 
         self.image_shapes = [x.image_size for x in proposals]
         self.invalid_class_range = invalid_class_range
@@ -242,13 +246,21 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
+            prev_cls_pred =  torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
+            # gt_is_bg = self.gt_classes.eq(self.num_classes)
+            gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
+            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
+            # print(len(self.gt_classes),exclude_for_cross_entropy.sum())
+
+            self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
+            self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
             # self.log_logits(self.pred_class_logits, self.gt_classes)
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
 
     def log_logits(self, logits, cls):
         data = (logits, cls)
-        location = '/home/dy20/OWOD-v2/output/logits/' + shortuuid.uuid() + '.pkl'
+        location = '/home/dy20/owod_attention/output/logits/' + shortuuid.uuid() + '.pkl'
         torch.save(data, location)
 
     def box_reg_loss(self):
@@ -273,7 +285,7 @@ class FastRCNNOutputs:
         # Empty fg_inds produces a valid loss of zero as long as the size_average
         # arg to smooth_l1_loss is False (otherwise it uses torch.mean internally
         # and would produce a nan loss).
-        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind))[0]
+        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind-1))[0]
         if cls_agnostic_bbox_reg:
             # pred_proposal_deltas only corresponds to foreground class for agnostic
             gt_class_cols = torch.arange(box_dim, device=device)
@@ -420,6 +432,10 @@ class FastRCNNOutputLayers(nn.Module):
         output_dir,
         feat_store_path,
         margin,
+        key_num_per_cls: int,
+        key_dim: int,
+        ft: bool,
+        enable_attention:bool,
         num_classes: int,
         test_score_thresh: float = 0.0,
         test_nms_thresh: float = 0.5,
@@ -452,11 +468,20 @@ class FastRCNNOutputLayers(nn.Module):
         if isinstance(input_shape, int):  # some backward compatibility
             input_shape = ShapeSpec(channels=input_shape)
         input_size = input_shape.channels * (input_shape.width or 1) * (input_shape.height or 1)
+        # print(input_size)
         # prediction layer for num_classes foreground classes and one background class (hence + 1)
         self.cls_score = Linear(input_size, num_classes + 1)
         num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
         box_dim = len(box2box_transform.weights)
+        self.key_dim = key_dim
+        self.key_num_per_cls = key_num_per_cls
         self.bbox_pred = Linear(input_size, num_bbox_reg_classes * box_dim)
+        self.enable_attention = enable_attention
+        self.ft = ft
+        self.attention_query = Linear(input_size,key_dim)
+        self.attention_key = Linear(1,(num_classes+1)*key_num_per_cls*key_dim)
+        self.attention_value = Linear(1,(num_classes+1)*key_num_per_cls*input_size)
+
 
         nn.init.normal_(self.cls_score.weight, std=0.01)
         nn.init.normal_(self.bbox_pred.weight, std=0.001)
@@ -503,6 +528,7 @@ class FastRCNNOutputLayers(nn.Module):
                                              self.feature_store_save_loc + '. Creating new feature store.')
             self.feature_store = Store(num_classes + 1, clustering_items_per_class)
         self.means = [None for _ in range(num_classes + 1)]
+        self.flag = True
 
         # self.ae_model = AE(input_size, clustering_z_dimension)
         # self.ae_model.apply(Xavier)
@@ -520,7 +546,7 @@ class FastRCNNOutputLayers(nn.Module):
             "test_nms_thresh"       : cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST,
             "test_topk_per_image"   : cfg.TEST.DETECTIONS_PER_IMAGE,
             "box_reg_loss_type"     : cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_TYPE,
-            "loss_weight"           : {"loss_box_reg": cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT, "loss_clustering": 0.1},
+            "loss_weight"           : {"loss_box_reg": cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT, "loss_clustering": 0.1,"loss_memory":0.1},
             "clustering_items_per_class" : cfg.OWOD.CLUSTERING.ITEMS_PER_CLASS,
             "clustering_start_iter" : cfg.OWOD.CLUSTERING.START_ITER,
             "clustering_update_mu_iter" : cfg.OWOD.CLUSTERING.UPDATE_MU_ITER,
@@ -533,6 +559,11 @@ class FastRCNNOutputLayers(nn.Module):
             "output_dir"            : cfg.OUTPUT_DIR,
             "feat_store_path"       : cfg.OWOD.FEATURE_STORE_SAVE_PATH,
             "margin"                : cfg.OWOD.CLUSTERING.MARGIN,
+            "enable_attention"      : cfg.OWOD.ENABLE_ATTENTION,
+            "key_num_per_cls"               : cfg.OWOD.KEY_NUM_PER_CLS,
+            "key_dim"               : cfg.OWOD.KEY_DIM,
+            "ft"                    :cfg.OWOD.FT_ON
+
             # fmt: on
         }
 
@@ -549,6 +580,7 @@ class FastRCNNOutputLayers(nn.Module):
             Second tensor: bounding box regression deltas for each box. Shape is shape (N,Kx4),
             or (N,4) for class-agnostic regression.
         """
+        #torch.Size([512, 2048])
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
         scores = self.cls_score(x)
@@ -616,13 +648,15 @@ class FastRCNNOutputLayers(nn.Module):
 
         return loss
 
+
     def get_clustering_loss(self, input_features, proposals):
         if not self.enable_clustering:
             return 0
 
         storage = get_event_storage()
         c_loss = 0
-        if storage.iter == self.clustering_start_iter:
+        if storage.iter >= self.clustering_start_iter and self.flag:
+            self.flag = False
             items = self.feature_store.retrieve(-1)
             for index, item in enumerate(items):
                 if len(item) == 0:
@@ -679,6 +713,8 @@ class FastRCNNOutputLayers(nn.Module):
             scores,
             proposal_deltas,
             proposals,
+            self.num_classes,
+            self.prev_intro_cls,
             self.invalid_class_range,
             self.smooth_l1_beta,
             self.box_reg_loss_type,
@@ -686,7 +722,73 @@ class FastRCNNOutputLayers(nn.Module):
         if input_features is not None:
             # losses["loss_cluster_encoder"] = self.get_ae_loss(input_features)
             losses["loss_clustering"] = self.get_clustering_loss(input_features, proposals)
+            losses.update(self.memory_loss(input_features, proposals))
         return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
+
+    def memory_loss(self, input_features,proposals):
+        if not self.enable_attention:
+            losses = dict()
+            losses["current_memory_loss"] = 0
+            return losses
+
+        gt_classes = torch.cat([p.gt_classes for p in proposals])
+        known_idx = torch.arange(len(gt_classes))[gt_classes < self.num_classes-1]
+        unknown_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes-1]
+        bg_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes]
+        input_features_cur = input_features[known_idx,:]
+        input_features_unknown = input_features[unknown_idx,:]
+        input_features_bg = input_features[bg_idx,:]
+        input_one_for_key = input_features.new_ones(1)
+        input_one_for_value = input_features.new_ones(1)
+        #compute current intro class memory loss
+        in_features_cur = input_features_cur.clone().detach()
+        in_features_unknown = input_features_unknown.clone().detach()
+        in_features_bg = input_features_bg.clone().detach()
+        Q_Cur = self.attention_query(in_features_cur).reshape(-1,self.key_dim)
+        Q_unknown = self.attention_query(in_features_unknown).reshape(-1,self.key_dim)
+        Q_bg = self.attention_query(in_features_bg).reshape(-1,self.key_dim)
+        K = self.attention_key(input_one_for_key).reshape(self.key_dim,(self.num_classes+1)*self.key_num_per_cls)
+        K_Cur = K[:,self.prev_intro_cls*self.key_num_per_cls:self.seen_classes*self.key_num_per_cls]
+        K_unknown = K[:,self.seen_classes*self.key_num_per_cls:self.num_classes*self.key_num_per_cls]
+        K_bg = K[:,self.num_classes*self.key_num_per_cls:(self.num_classes+1)*self.key_num_per_cls]
+        V = self.attention_value(input_one_for_value).reshape((self.num_classes+1)*self.key_num_per_cls,in_features_cur.shape[1])
+        V_Cur = V[self.prev_intro_cls*self.key_num_per_cls:self.seen_classes*self.key_num_per_cls,:]
+        V_unknown = V[self.seen_classes*self.key_num_per_cls:self.num_classes*self.key_num_per_cls,:]
+        V_bg = V[self.num_classes*self.key_num_per_cls:(self.num_classes+1)*self.key_num_per_cls,:]
+        d_k = Q_Cur.size(-1)
+        out_feature_cur = F.softmax(torch.matmul(Q_Cur,K_Cur)/math.sqrt(d_k),dim=-1)
+        out_feature_cur = out_feature_cur.matmul(V_Cur)
+        out_feature_unknown = F.softmax(torch.matmul(Q_unknown,K_unknown)/math.sqrt(d_k),dim=-1)
+        out_feature_unknown = out_feature_unknown.matmul(V_unknown)
+        out_feature_bg = F.softmax(torch.matmul(Q_bg,K_bg)/math.sqrt(d_k),dim=-1)
+        out_feature_bg = out_feature_bg.matmul(V_bg)
+        losses = dict()
+        in_features = torch.cat([in_features_cur,in_features_unknown,in_features_bg],dim=0)
+        out_features = torch.cat([out_feature_cur,out_feature_unknown,out_feature_bg],dim=0)
+        # if input_features.size(0) == 0:
+        #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
+        # else:
+        losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
+
+        # compute previous class memory loss
+        #fix K_Prev and V_Prev
+        if  not self.ft:
+            return losses
+        prev_idx = torch.arange(len(gt_classes))[gt_classes < self.prev_intro_cls]
+        input_features_prev = input_features[prev_idx,:]
+
+
+        Q_Prev = self.attention_query(input_features_prev).reshape(-1,self.key_dim)
+        K_Prev = K[:,:self.prev_intro_cls*self.key_num_per_cls].clone().detach()
+        V_Prev = V[:self.prev_intro_cls*self.key_num_per_cls,:].clone().detach()
+        d_k = Q_Prev.size(-1)
+        out_features_prev = F.softmax(torch.matmul(Q_Prev, K_Prev) / math.sqrt(d_k), dim=-1)
+        out_features_prev = out_features_prev.matmul(V_Prev)
+        losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
+        # print(losses)
+        return losses
+
+
 
     def inference(self, predictions, proposals):
         """
