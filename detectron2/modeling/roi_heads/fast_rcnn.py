@@ -732,10 +732,10 @@ class FastRCNNOutputLayers(nn.Module):
             return losses
 
         gt_classes = torch.cat([p.gt_classes for p in proposals])
-        known_idx = torch.arange(len(gt_classes))[gt_classes < self.num_classes-1]
+        cur_idx = torch.arange(len(gt_classes))[(gt_classes < self.seen_classes)&(gt_classes >= self.prev_intro_cls)]
         unknown_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes-1]
         bg_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes]
-        input_features_cur = input_features[known_idx,:]
+        input_features_cur = input_features[cur_idx,:]
         input_features_unknown = input_features[unknown_idx,:]
         input_features_bg = input_features[bg_idx,:]
         input_one_for_key = input_features.new_ones(1)
@@ -774,7 +774,7 @@ class FastRCNNOutputLayers(nn.Module):
         scores = self.cls_score(out_features)
         # print(in_features.requires_grad)
         # proposal_deltas = self.bbox_pred(x)
-        losses_cls_attention = F.cross_entropy(scores, gt_classes[self.prev_intro_cls:])
+        losses_cls_attention = F.cross_entropy(scores, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx])])
         losses["losses_cls_attention"] = losses_cls_attention
 
         # compute previous class memory loss
