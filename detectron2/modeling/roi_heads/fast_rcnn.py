@@ -769,15 +769,23 @@ class FastRCNNOutputLayers(nn.Module):
         #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
         # else:
         losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
+        if out_features.dim() > 2:
+            out_features = torch.flatten(out_features, start_dim=1)
+        scores = self.cls_score(out_features)
+        # print(in_features.requires_grad)
+        # proposal_deltas = self.bbox_pred(x)
+        losses_cls_attention = F.cross_entropy(scores, gt_classes[self.prev_intro_cls:])
+        losses["losses_cls_attention"] = losses_cls_attention
 
         # compute previous class memory loss
         #fix K_Prev and V_Prev
-        if  not self.ft:
+        if not self.ft:
             return losses
         prev_idx = torch.arange(len(gt_classes))[gt_classes < self.prev_intro_cls]
+        if len(prev_idx) == 0:
+            losses["prev_memory_loss"] = 0
+            return losses
         input_features_prev = input_features[prev_idx,:]
-
-
         Q_Prev = self.attention_query(input_features_prev).reshape(-1,self.key_dim)
         K_Prev = K[:,:self.prev_intro_cls*self.key_num_per_cls].clone().detach()
         V_Prev = V[:self.prev_intro_cls*self.key_num_per_cls,:].clone().detach()
