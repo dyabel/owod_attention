@@ -785,8 +785,8 @@ class FastRCNNOutputLayers(nn.Module):
         # if input_features.size(0) == 0:
         #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
         # else:
-        losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
-        # losses["current_memory_loss"] = self.feature_similarity(in_features,out_features)
+        # losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
+        losses["current_memory_loss"] = self.feature_similarity(in_features,out_features)
         if out_features.dim() > 2:
             out_features = torch.flatten(out_features, start_dim=1)
         scores_attention = self.cls_score(out_features)
@@ -810,8 +810,8 @@ class FastRCNNOutputLayers(nn.Module):
         d_k = Q_Prev.size(-1)
         out_features_prev = F.softmax(torch.matmul(Q_Prev, K_Prev) / math.sqrt(d_k), dim=-1)
         out_features_prev = out_features_prev.matmul(V_Prev)
-        losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
-        # losses["prev_memory_loss"] = self.feature_similarity(input_features_prev, out_features_prev)
+        # losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
+        losses["prev_memory_loss"] = self.feature_similarity(input_features_prev, out_features_prev)
         # print(losses)
         return losses
 
