@@ -246,12 +246,15 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
-            prev_cls_pred =  torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
-            # gt_is_bg = self.gt_classes.eq(self.num_classes)
-            gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-            # print(len(self.gt_classes),exclude_for_cross_entropy.sum())
-
+            prev_cls_pred = torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
+            # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
+            gt_is_unk = self.gt_classes == self.num_classes-1
+            # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
+            # tmp = gt_is_not_unk_or_bg*prev_cls_pred
+            # print(tmp.sum())
+            # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
+            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk)
+            #
             self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
             self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
@@ -478,8 +481,10 @@ class FastRCNNOutputLayers(nn.Module):
         self.bbox_pred = Linear(input_size, num_bbox_reg_classes * box_dim)
         self.enable_attention = enable_attention
         self.ft = ft
-        self.attention_query = Linear(input_size,key_dim)
-        self.attention_key = Linear(1,(num_classes+1)*key_num_per_cls*key_dim)
+        self.cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
+        self.attention_query = Linear(input_size,self.key_dim)
+        # self.attention_query = nn.Identity()
+        self.attention_key = Linear(1,(num_classes+1)*key_num_per_cls*self.key_dim)
         self.attention_value = Linear(1,(num_classes+1)*key_num_per_cls*input_size)
 
 
@@ -532,6 +537,8 @@ class FastRCNNOutputLayers(nn.Module):
 
         # self.ae_model = AE(input_size, clustering_z_dimension)
         # self.ae_model.apply(Xavier)
+    def feature_similarity(self,x,y):
+        return (1 - self.cos(x,y)).mean()
 
     @classmethod
     def from_config(cls, cfg, input_shape):
@@ -546,7 +553,7 @@ class FastRCNNOutputLayers(nn.Module):
             "test_nms_thresh"       : cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST,
             "test_topk_per_image"   : cfg.TEST.DETECTIONS_PER_IMAGE,
             "box_reg_loss_type"     : cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_TYPE,
-            "loss_weight"           : {"loss_box_reg": cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT, "loss_clustering": 0.1,"loss_memory":0.1},
+            "loss_weight"           : {"loss_box_reg": cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT, "loss_clustering": 0.1,"current_memory_loss":0.1,"prev_memory_loss":0.1,"losses_cls_attention":0.1},
             "clustering_items_per_class" : cfg.OWOD.CLUSTERING.ITEMS_PER_CLASS,
             "clustering_start_iter" : cfg.OWOD.CLUSTERING.START_ITER,
             "clustering_update_mu_iter" : cfg.OWOD.CLUSTERING.UPDATE_MU_ITER,
@@ -722,16 +729,26 @@ class FastRCNNOutputLayers(nn.Module):
         if input_features is not None:
             # losses["loss_cluster_encoder"] = self.get_ae_loss(input_features)
             losses["loss_clustering"] = self.get_clustering_loss(input_features, proposals)
-            losses.update(self.memory_loss(input_features, proposals))
+            losses.update(self.memory_loss(input_features, proposals,scores))
         return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
 
-    def memory_loss(self, input_features,proposals):
+    def memory_loss(self, input_features,proposals,pred_class_logits):
         if not self.enable_attention:
             losses = dict()
             losses["current_memory_loss"] = 0
             return losses
 
         gt_classes = torch.cat([p.gt_classes for p in proposals])
+        prev_cls_pred = torch.argmax(pred_class_logits, dim=1).le(self.prev_intro_cls - 1)
+        # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
+        gt_is_unk = gt_classes == self.num_classes - 1
+        # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
+        # tmp = gt_is_not_unk_or_bg*prev_cls_pred
+        # print(tmp.sum())
+        # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
+        exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred * gt_is_unk)
+        gt_classes = gt_classes[exclude_prev_cls_for_cross_entropy]
+        input_features = input_features[exclude_prev_cls_for_cross_entropy]
         cur_idx = torch.arange(len(gt_classes))[(gt_classes < self.seen_classes)&(gt_classes >= self.prev_intro_cls)]
         unknown_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes-1]
         bg_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes]
@@ -769,12 +786,13 @@ class FastRCNNOutputLayers(nn.Module):
         #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
         # else:
         losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
+        # losses["current_memory_loss"] = self.feature_similarity(in_features,out_features)
         if out_features.dim() > 2:
             out_features = torch.flatten(out_features, start_dim=1)
-        scores = self.cls_score(out_features)
+        scores_attention = self.cls_score(out_features)
         # print(in_features.requires_grad)
         # proposal_deltas = self.bbox_pred(x)
-        losses_cls_attention = F.cross_entropy(scores, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx])])
+        losses_cls_attention = F.cross_entropy(scores_attention, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx],dim=0)])
         losses["losses_cls_attention"] = losses_cls_attention
 
         # compute previous class memory loss
@@ -793,6 +811,7 @@ class FastRCNNOutputLayers(nn.Module):
         out_features_prev = F.softmax(torch.matmul(Q_Prev, K_Prev) / math.sqrt(d_k), dim=-1)
         out_features_prev = out_features_prev.matmul(V_Prev)
         losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
+        # losses["prev_memory_loss"] = self.feature_similarity(input_features_prev, out_features_prev)
         # print(losses)
         return losses
 
