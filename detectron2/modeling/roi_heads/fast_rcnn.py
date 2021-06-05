@@ -370,6 +370,7 @@ class FastRCNNOutputs:
         probs = F.softmax(self.pred_class_logits, dim=-1)
         return probs.split(self.num_preds_per_image, dim=0)
 
+    #FastRCNNOutputs
     def inference(self, score_thresh, nms_thresh, topk_per_image):
         """
         Deprecated
@@ -438,6 +439,7 @@ class FastRCNNOutputLayers(nn.Module):
         key_num_per_cls: int,
         key_dim: int,
         ft: bool,
+        inf: bool,
         enable_attention:bool,
         num_classes: int,
         test_score_thresh: float = 0.0,
@@ -479,6 +481,7 @@ class FastRCNNOutputLayers(nn.Module):
         # self.key_dim = key_dim
         self.key_dim = input_size
         self.key_num_per_cls = key_num_per_cls
+        self.inf = inf
         self.bbox_pred = Linear(input_size, num_bbox_reg_classes * box_dim)
         self.enable_attention = enable_attention
         self.ft = ft
@@ -539,7 +542,8 @@ class FastRCNNOutputLayers(nn.Module):
         # self.ae_model = AE(input_size, clustering_z_dimension)
         # self.ae_model.apply(Xavier)
     def feature_similarity(self,x,y):
-        return (1 - self.cos(x,y)).mean()
+        return F.mse_loss(x,y)
+        # return (1 - self.cos(x,y)).mean()
 
     @classmethod
     def from_config(cls, cfg, input_shape):
@@ -570,7 +574,8 @@ class FastRCNNOutputLayers(nn.Module):
             "enable_attention"      : cfg.OWOD.ENABLE_ATTENTION,
             "key_num_per_cls"               : cfg.OWOD.KEY_NUM_PER_CLS,
             "key_dim"               : cfg.OWOD.KEY_DIM,
-            "ft"                    :cfg.OWOD.FT_ON
+            "ft"                    :cfg.OWOD.FT_ON,
+            "inf"                   : cfg.OWOD.INF_ON
 
             # fmt: on
         }
@@ -591,6 +596,22 @@ class FastRCNNOutputLayers(nn.Module):
         #torch.Size([512, 2048])
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
+        if False:
+            input_features = x
+            input_one_for_key = input_features.new_ones(1)
+            input_one_for_value = input_features.new_ones(1)
+            K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
+                            # [:, self.prev_intro_cls * self.key_num_per_cls: self.seen_classes * self.key_num_per_cls]
+            V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
+                                                                  input_features.shape[1])
+            Q = self.attention_query(input_features).reshape(-1, self.key_dim)
+            d_k = Q.size(-1)
+            out_feature = F.softmax(torch.matmul(Q, K) / math.sqrt(d_k), dim=-1)
+            out_feature = out_feature.matmul(V)
+            scores = self.cls_score(out_feature)
+            proposal_deltas = self.bbox_pred(out_feature)
+            return scores, proposal_deltas
+
         scores = self.cls_score(x)
         proposal_deltas = self.bbox_pred(x)
         return scores, proposal_deltas
@@ -756,7 +777,7 @@ class FastRCNNOutputLayers(nn.Module):
         K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
         V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
                                                               input_features.shape[1])
-        if not self.ft:
+        if True:
             cur_idx = torch.arange(len(gt_classes))[(gt_classes < self.seen_classes)&(gt_classes >= self.prev_intro_cls)]
             unknown_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes-1]
             bg_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes]
@@ -767,9 +788,9 @@ class FastRCNNOutputLayers(nn.Module):
             in_features_cur = input_features_cur.clone().detach()
             in_features_unknown = input_features_unknown.clone().detach()
             in_features_bg = input_features_bg.clone().detach()
-            Q_Cur = self.attention_query(in_features_cur).reshape(-1,self.key_dim)
-            Q_unknown = self.attention_query(in_features_unknown).reshape(-1,self.key_dim)
-            Q_bg = self.attention_query(in_features_bg).reshape(-1,self.key_dim)
+            Q_Cur = self.attention_query(in_features_cur).reshape(-1,self.key_dim).clone().detach()
+            Q_unknown = self.attention_query(in_features_unknown).reshape(-1,self.key_dim).clone().detach()
+            Q_bg = self.attention_query(in_features_bg).reshape(-1,self.key_dim).clone().detach()
             K_Cur = K[:,self.prev_intro_cls*self.key_num_per_cls:self.seen_classes*self.key_num_per_cls]
             K_unknown = K[:,self.seen_classes*self.key_num_per_cls:self.num_classes*self.key_num_per_cls]
             K_bg = K[:,self.num_classes*self.key_num_per_cls:(self.num_classes+1)*self.key_num_per_cls]
@@ -795,11 +816,16 @@ class FastRCNNOutputLayers(nn.Module):
             scores_attention = self.cls_score(out_features)
             # print(in_features.requires_grad)
             # proposal_deltas = self.bbox_pred(x)
+            # invalid_class_range = list(range(self.seen_classes,self.num_classes-1)).extend(list(range(self.prev_intro_cls)))
+            invalid_class_range = list(range(self.seen_classes,self.num_classes-1))
+            scores_attention[:, invalid_class_range] = -10e10
             losses_cls_attention = F.cross_entropy(scores_attention, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx],dim=0)])
             losses["losses_cls_attention"] = losses_cls_attention
-            return losses
+            # return losses
         # compute previous class memory loss
         #fix K_Prev and V_Prev
+        if not self.ft:
+            return losses
         prev_idx = torch.arange(len(gt_classes))[gt_classes < self.seen_classes]
         if len(prev_idx) == 0:
             losses["prev_memory_loss"] = 0
@@ -818,6 +844,7 @@ class FastRCNNOutputLayers(nn.Module):
 
 
 
+    #FAST_RCNN_OUTPUT_LAYERS
     def inference(self, predictions, proposals):
         """
         Args:

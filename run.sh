@@ -11,7 +11,7 @@
 # (if you find something wrong in this, please raise an issue on GitHub)
 
 # Task 1
-CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125'  --config-file ./configs/OWOD/t1/t1_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t1"
+#CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52125'  --config-file ./configs/OWOD/t1/t1_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t1"
 #
 # No need to finetune in Task 1, as there is no incremental component.
 
@@ -27,7 +27,7 @@ if [[  ! -d "$Path" ]]; then
 fi
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 python tools/train_net.py --num-gpus 4 --dist-url='tcp://127.0.0.1:52127'  --resume --config-file ./configs/OWOD/t2/t2_train.yaml SOLVER.IMS_PER_BATCH 4 SOLVER.BASE_LR 0.005 OUTPUT_DIR "./output/t2" MODEL.WEIGHTS "output/t2/model_final.pth"
-
+#
 Path="output/t2_ft"
 if [  ! -d $Path ]; then
   cp -r output/t2 output/t2_ft
