@@ -38,3 +38,16 @@
 7	11716	1622717104267915958	/home/dy20/owod_attention/build/temp.linux-x86_64-3.7/home/dy20/owod_attention/detectron2/layers/csrc/deformable/deform_conv_cuda_kernel.o	80f72543e90924b0
 7	15519	1622717108071916134	/home/dy20/owod_attention/build/temp.linux-x86_64-3.7/home/dy20/owod_attention/detectron2/layers/csrc/deformable/deform_conv_cuda.o	e16a637455f366a1
 5	24545	1622717117099916552	/home/dy20/owod_attention/build/temp.linux-x86_64-3.7/home/dy20/owod_attention/detectron2/layers/csrc/vision.o	b11357aa8be0b177
+4	572	1622948595654624332	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/cuda_version.o	56731d0e54aa086d
+0	6390	1622948601478624601	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/cocoeval/cocoeval.o	120104796515f94c
+1	6409	1622948601498624602	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/box_iou_rotated/box_iou_rotated_cpu.o	6259da050ff6c992
+2	7347	1622948602434624645	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/nms_rotated/nms_rotated_cpu.o	f6a0ef71249b5a4
+1	9217	1622948604302624732	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/ROIAlign/ROIAlign_cpu.o	d6f9f918e0cbb396
+1	9411	1622948604498624741	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/ROIAlignRotated/ROIAlignRotated_cpu.o	bd6b29cf2521b9c7
+2	10902	1622948605982624809	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/box_iou_rotated/box_iou_rotated_cuda.o	8332307508820cad
+3	10942	1622948606018624811	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/ROIAlign/ROIAlign_cuda.o	4c64b0260b8b453b
+3	11087	1622948606166624818	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/ROIAlignRotated/ROIAlignRotated_cuda.o	176af13349ce9702
+3	11434	1622948606510624834	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/nms_rotated/nms_rotated_cuda.o	ee84f2c63ae1d13e
+2	11624	1622948606702624843	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/deformable/deform_conv_cuda_kernel.o	611a1e2b285d98ab
+2	14862	1622948609942624993	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/deformable/deform_conv_cuda.o	3cdd114b09d0cc6b
+0	22808	1622948617886625360	/home/dy20/owod_edit/build/temp.linux-x86_64-3.7/home/dy20/owod_edit/detectron2/layers/csrc/vision.o	66e9af121649980d

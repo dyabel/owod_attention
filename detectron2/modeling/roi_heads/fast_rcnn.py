@@ -596,25 +596,24 @@ class FastRCNNOutputLayers(nn.Module):
         #torch.Size([512, 2048])
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
-        if False:
-            input_features = x
-            input_one_for_key = input_features.new_ones(1)
-            input_one_for_value = input_features.new_ones(1)
-            K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
-                            # [:, self.prev_intro_cls * self.key_num_per_cls: self.seen_classes * self.key_num_per_cls]
-            V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
-                                                                  input_features.shape[1])
-            Q = self.attention_query(input_features).reshape(-1, self.key_dim)
-            d_k = Q.size(-1)
-            out_feature = F.softmax(torch.matmul(Q, K) / math.sqrt(d_k), dim=-1)
-            out_feature = out_feature.matmul(V)
-            scores = self.cls_score(out_feature)
-            proposal_deltas = self.bbox_pred(out_feature)
-            return scores, proposal_deltas
-
-        scores = self.cls_score(x)
-        proposal_deltas = self.bbox_pred(x)
+        # if self.inf:
+        input_features = x
+        input_one_for_key = input_features.new_ones(1)
+        input_one_for_value = input_features.new_ones(1)
+        K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)[:,:self.seen_classes * self.key_num_per_cls]
+        V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
+                                                              input_features.shape[1])[:self.seen_classes*self.key_num_per_cls,:]
+        Q = self.attention_query(input_features).reshape(-1, self.key_dim)
+        d_k = Q.size(-1)
+        out_feature = F.softmax(torch.matmul(Q, K) / math.sqrt(d_k), dim=-1)
+        out_feature = out_feature.matmul(V)
+        scores = self.cls_score(out_feature)
+        proposal_deltas = self.bbox_pred(out_feature)
         return scores, proposal_deltas
+
+        # scores = self.cls_score(x)
+        # proposal_deltas = self.bbox_pred(x)
+        # return scores, proposal_deltas
 
     def update_feature_store(self, features, proposals):
         # cat(..., dim=0) concatenates over all images in the batch
@@ -754,81 +753,49 @@ class FastRCNNOutputLayers(nn.Module):
             losses.update(self.memory_loss(input_features, proposals,scores))
         return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
 
-    def memory_loss(self, input_features,proposals,pred_class_logits):
+    def memory_loss(self, input_features,proposals,scores_cur):
         if not self.enable_attention:
             losses = dict()
             losses["current_memory_loss"] = 0
             return losses
 
         gt_classes = torch.cat([p.gt_classes for p in proposals])
-        prev_cls_pred = torch.argmax(pred_class_logits, dim=1).le(self.prev_intro_cls - 1)
-        # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-        gt_is_unk = gt_classes == self.num_classes - 1
-        # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
-        # tmp = gt_is_not_unk_or_bg*prev_cls_pred
-        # print(tmp.sum())
-        # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-        exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred * gt_is_unk)
-        gt_classes = gt_classes[exclude_prev_cls_for_cross_entropy]
-        input_features = input_features[exclude_prev_cls_for_cross_entropy]
         losses = dict()
         input_one_for_key = input_features.new_ones(1)
         input_one_for_value = input_features.new_ones(1)
         K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
         V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
                                                               input_features.shape[1])
-        if True:
-            cur_idx = torch.arange(len(gt_classes))[(gt_classes < self.seen_classes)&(gt_classes >= self.prev_intro_cls)]
-            unknown_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes-1]
-            bg_idx = torch.arange(len(gt_classes))[gt_classes == self.num_classes]
-            input_features_cur = input_features[cur_idx,:]
-            input_features_unknown = input_features[unknown_idx,:]
-            input_features_bg = input_features[bg_idx,:]
-            #compute current intro class memory loss
-            in_features_cur = input_features_cur.clone().detach()
-            in_features_unknown = input_features_unknown.clone().detach()
-            in_features_bg = input_features_bg.clone().detach()
-            Q_Cur = self.attention_query(in_features_cur).reshape(-1,self.key_dim).clone().detach()
-            Q_unknown = self.attention_query(in_features_unknown).reshape(-1,self.key_dim).clone().detach()
-            Q_bg = self.attention_query(in_features_bg).reshape(-1,self.key_dim).clone().detach()
-            K_Cur = K[:,self.prev_intro_cls*self.key_num_per_cls:self.seen_classes*self.key_num_per_cls]
-            K_unknown = K[:,self.seen_classes*self.key_num_per_cls:self.num_classes*self.key_num_per_cls]
-            K_bg = K[:,self.num_classes*self.key_num_per_cls:(self.num_classes+1)*self.key_num_per_cls]
-            V_Cur = V[self.prev_intro_cls*self.key_num_per_cls:self.seen_classes*self.key_num_per_cls,:]
-            V_unknown = V[self.seen_classes*self.key_num_per_cls:self.num_classes*self.key_num_per_cls,:]
-            V_bg = V[self.num_classes*self.key_num_per_cls:(self.num_classes+1)*self.key_num_per_cls,:]
-            d_k = Q_Cur.size(-1)
-            out_feature_cur = F.softmax(torch.matmul(Q_Cur,K_Cur)/math.sqrt(d_k),dim=-1)
-            out_feature_cur = out_feature_cur.matmul(V_Cur)
-            out_feature_unknown = F.softmax(torch.matmul(Q_unknown,K_unknown)/math.sqrt(d_k),dim=-1)
-            out_feature_unknown = out_feature_unknown.matmul(V_unknown)
-            out_feature_bg = F.softmax(torch.matmul(Q_bg,K_bg)/math.sqrt(d_k),dim=-1)
-            out_feature_bg = out_feature_bg.matmul(V_bg)
-            in_features = torch.cat([in_features_cur,in_features_unknown,in_features_bg],dim=0)
-            out_features = torch.cat([out_feature_cur,out_feature_unknown,out_feature_bg],dim=0)
-            # if input_features.size(0) == 0:
-            #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
-            # else:
-            # losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
-            losses["current_memory_loss"] = self.feature_similarity(in_features,out_features)
-            if out_features.dim() > 2:
-                out_features = torch.flatten(out_features, start_dim=1)
-            scores_attention = self.cls_score(out_features)
-            # print(in_features.requires_grad)
-            # proposal_deltas = self.bbox_pred(x)
-            # invalid_class_range = list(range(self.seen_classes,self.num_classes-1)).extend(list(range(self.prev_intro_cls)))
-            invalid_class_range = list(range(self.seen_classes,self.num_classes-1))
-            scores_attention[:, invalid_class_range] = -10e10
-            losses_cls_attention = F.cross_entropy(scores_attention, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx],dim=0)])
-            losses["losses_cls_attention"] = losses_cls_attention
-            # return losses
+        #compute current intro class memory loss
+        if not self.ft and self.prev_intro_cls>0:
+            Q = self.attention_query(input_features)
+            K_Prev = K[:,:self.prev_intro_cls*self.key_num_per_cls]
+            V_Prev = V[:self.prev_intro_cls*self.key_num_per_cls,:]
+            d_k = Q.size(-1)
+            out_features_prev = F.softmax(torch.matmul(Q,K_Prev)/math.sqrt(d_k),dim=-1)
+            out_features_prev = out_features_prev.matmul(V_Prev)
+
+            if out_features_prev.dim() > 2:
+                out_features_prev = torch.flatten(out_features_prev, start_dim=1)
+            scores_prev = self.cls_score(out_features_prev)
+            prev_cls_score_prev = scores_prev[:,:self.prev_intro_cls]
+            unk_bg_cls_score_prev = scores_prev[:,self.num_classes-1:self.num_classes+1]
+            prev_cls_score_cur = scores_cur[:,:self.prev_intro_cls]
+            cur_cls_score_cur = scores_cur[:,self.prev_intro_cls:self.seen_classes]
+            unk_bg_cls_score_cur = scores_cur[:,self.num_classes-1:self.num_classes+1]
+            unk_bg_cls_score_cur[:,-2] += cur_cls_score_cur.sum(dim=1)
+            gt_classes_for_prev = gt_classes.new_full(gt_classes.size(),self.num_classes-1)
+            gt_classes_for_prev[gt_classes == self.num_classes] = self.num_classes
+            kd_loss = F.kl_div(prev_cls_score_cur.log(),prev_cls_score_prev) + F.kl_div(unk_bg_cls_score_cur.log(),unk_bg_cls_score_prev)
+            losses['prev_cls_loss'] = F.cross_entropy(scores_prev,gt_classes_for_prev)
+            losses['kd_loss'] = kd_loss
+            return losses
+
+
         # compute previous class memory loss
         #fix K_Prev and V_Prev
-        if not self.ft:
-            return losses
-        prev_idx = torch.arange(len(gt_classes))[gt_classes < self.seen_classes]
+        prev_idx = torch.arange(len(gt_classes))[gt_classes < self.prev_intro_cls]
         if len(prev_idx) == 0:
-            losses["prev_memory_loss"] = 0
             return losses
         input_features_prev = input_features[prev_idx,:]
         Q_Prev = self.attention_query(input_features_prev).reshape(-1,self.key_dim)
@@ -837,9 +804,9 @@ class FastRCNNOutputLayers(nn.Module):
         d_k = Q_Prev.size(-1)
         out_features_prev = F.softmax(torch.matmul(Q_Prev, K_Prev) / math.sqrt(d_k), dim=-1)
         out_features_prev = out_features_prev.matmul(V_Prev)
+        scores_prev = self.cls_score(out_features_prev)
         # losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
-        losses["prev_memory_loss"] = self.feature_similarity(input_features_prev, out_features_prev)
-        # print(losses)
+        losses["ft_loss"] = F.cross_entropy(scores_prev, gt_classes[prev_idx])
         return losses
 
 
