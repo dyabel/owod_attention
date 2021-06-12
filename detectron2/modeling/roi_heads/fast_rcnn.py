@@ -246,17 +246,17 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
-            prev_cls_pred = torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
+            # prev_cls_pred = torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
             # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-            gt_is_unk = self.gt_classes == self.num_classes-1
+            # gt_is_unk = self.gt_classes == self.num_classes-1
             # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
             # tmp = gt_is_not_unk_or_bg*prev_cls_pred
             # print(tmp.sum())
             # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk)
+            # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk)
             #
-            self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
-            self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
+            # self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
+            # self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
             # self.log_logits(self.pred_class_logits, self.gt_classes)
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
@@ -288,7 +288,7 @@ class FastRCNNOutputs:
         # Empty fg_inds produces a valid loss of zero as long as the size_average
         # arg to smooth_l1_loss is False (otherwise it uses torch.mean internally
         # and would produce a nan loss).
-        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind-1))[0]
+        fg_inds = nonzero_tuple((self.gt_classes >= 0) & (self.gt_classes < bg_class_ind))[0]
         if cls_agnostic_bbox_reg:
             # pred_proposal_deltas only corresponds to foreground class for agnostic
             gt_class_cols = torch.arange(box_dim, device=device)
@@ -596,21 +596,21 @@ class FastRCNNOutputLayers(nn.Module):
         #torch.Size([512, 2048])
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
-        if False:
-            input_features = x
-            input_one_for_key = input_features.new_ones(1)
-            input_one_for_value = input_features.new_ones(1)
-            K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
-                            # [:, self.prev_intro_cls * self.key_num_per_cls: self.seen_classes * self.key_num_per_cls]
-            V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
-                                                                  input_features.shape[1])
-            Q = self.attention_query(input_features).reshape(-1, self.key_dim)
-            d_k = Q.size(-1)
-            out_feature = F.softmax(torch.matmul(Q, K) / math.sqrt(d_k), dim=-1)
-            out_feature = out_feature.matmul(V)
-            scores = self.cls_score(out_feature)
-            proposal_deltas = self.bbox_pred(out_feature)
-            return scores, proposal_deltas
+        # if False:
+            # input_features = x
+            # input_one_for_key = input_features.new_ones(1)
+            # input_one_for_value = input_features.new_ones(1)
+            # K = self.attention_key(input_one_for_key).reshape(self.key_dim, (self.num_classes + 1) * self.key_num_per_cls)
+            #                 # [:, self.prev_intro_cls * self.key_num_per_cls: self.seen_classes * self.key_num_per_cls]
+            # V = self.attention_value(input_one_for_value).reshape((self.num_classes + 1) * self.key_num_per_cls,
+            #                                                       input_features.shape[1])
+            # Q = self.attention_query(input_features).reshape(-1, self.key_dim)
+            # d_k = Q.size(-1)
+            # out_feature = F.softmax(torch.matmul(Q, K) / math.sqrt(d_k), dim=-1)
+            # out_feature = out_feature.matmul(V)
+            # scores = self.cls_score(out_feature)
+            # proposal_deltas = self.bbox_pred(out_feature)
+            # return scores, proposal_deltas
 
         scores = self.cls_score(x)
         proposal_deltas = self.bbox_pred(x)
@@ -761,16 +761,11 @@ class FastRCNNOutputLayers(nn.Module):
             return losses
 
         gt_classes = torch.cat([p.gt_classes for p in proposals])
-        prev_cls_pred = torch.argmax(pred_class_logits, dim=1).le(self.prev_intro_cls - 1)
-        # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-        gt_is_unk = gt_classes == self.num_classes - 1
-        # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
-        # tmp = gt_is_not_unk_or_bg*prev_cls_pred
-        # print(tmp.sum())
-        # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-        exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred * gt_is_unk)
-        gt_classes = gt_classes[exclude_prev_cls_for_cross_entropy]
-        input_features = input_features[exclude_prev_cls_for_cross_entropy]
+        # prev_cls_pred = torch.argmax(pred_class_logits, dim=1).le(self.prev_intro_cls - 1)
+        # gt_is_unk = gt_classes == self.num_classes - 1
+        # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred * gt_is_unk)
+        # gt_classes = gt_classes[exclude_prev_cls_for_cross_entropy]
+        # input_features = input_features[exclude_prev_cls_for_cross_entropy]
         losses = dict()
         input_one_for_key = input_features.new_ones(1)
         input_one_for_value = input_features.new_ones(1)
@@ -806,17 +801,10 @@ class FastRCNNOutputLayers(nn.Module):
             out_feature_bg = out_feature_bg.matmul(V_bg)
             in_features = torch.cat([in_features_cur,in_features_unknown,in_features_bg],dim=0)
             out_features = torch.cat([out_feature_cur,out_feature_unknown,out_feature_bg],dim=0)
-            # if input_features.size(0) == 0:
-            #     losses["current_memory_loss"] = in_features.sum() + out_feature.sum()*0
-            # else:
-            # losses["current_memory_loss"] = F.mse_loss(in_features,out_features)
             losses["current_memory_loss"] = self.feature_similarity(in_features,out_features)
             if out_features.dim() > 2:
                 out_features = torch.flatten(out_features, start_dim=1)
             scores_attention = self.cls_score(out_features)
-            # print(in_features.requires_grad)
-            # proposal_deltas = self.bbox_pred(x)
-            # invalid_class_range = list(range(self.seen_classes,self.num_classes-1)).extend(list(range(self.prev_intro_cls)))
             invalid_class_range = list(range(self.seen_classes,self.num_classes-1))
             scores_attention[:, invalid_class_range] = -10e10
             losses_cls_attention = F.cross_entropy(scores_attention, gt_classes[torch.cat([cur_idx,unknown_idx,bg_idx],dim=0)])
@@ -826,7 +814,7 @@ class FastRCNNOutputLayers(nn.Module):
         #fix K_Prev and V_Prev
         if not self.ft:
             return losses
-        prev_idx = torch.arange(len(gt_classes))[gt_classes < self.seen_classes]
+        prev_idx = torch.arange(len(gt_classes))[gt_classes < self.prev_intro_cls]
         if len(prev_idx) == 0:
             losses["prev_memory_loss"] = 0
             return losses
