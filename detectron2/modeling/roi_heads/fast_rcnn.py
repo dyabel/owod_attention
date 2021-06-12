@@ -246,19 +246,22 @@ class FastRCNNOutputs:
             return 0.0 * self.pred_class_logits.sum()
         else:
             self._log_accuracy()
-            prev_cls_pred = torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
+            # prev_cls_pred = torch.argmax(self.pred_class_logits,dim=1).le(self.prev_intro_cls-1)
             # gt_is_unk_or_bg = self.gt_classes.ge(self.num_classes-1)
-            gt_is_unk = self.gt_classes == self.num_classes-1
+            # gt_is_unk = self.gt_classes == self.num_classes-1
             # gt_is_not_unk_or_bg = self.gt_classes < self.num_classes-1
             # tmp = gt_is_not_unk_or_bg*prev_cls_pred
             # print(tmp.sum())
             # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk_or_bg)
-            exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk)
+            # exclude_prev_cls_for_cross_entropy = ~(prev_cls_pred*gt_is_unk)
             #
-            self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
-            self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
+            # self.pred_class_logits = self.pred_class_logits[exclude_prev_cls_for_cross_entropy,:]
+            # self.gt_classes = self.gt_classes[exclude_prev_cls_for_cross_entropy]
             self.pred_class_logits[:, self.invalid_class_range] = -10e10
             # self.log_logits(self.pred_class_logits, self.gt_classes)
+            # pred_class = self.pred_class_logits.argmax(dim=1)
+            # print('#'*100)
+            # print(pred_class[:10],self.gt_classes[:10])
             return F.cross_entropy(self.pred_class_logits, self.gt_classes, reduction="mean")
 
     def log_logits(self, logits, cls):
@@ -478,16 +481,16 @@ class FastRCNNOutputLayers(nn.Module):
         self.cls_score = Linear(input_size, num_classes + 1)
         num_bbox_reg_classes = 1 if cls_agnostic_bbox_reg else num_classes
         box_dim = len(box2box_transform.weights)
-        # self.key_dim = key_dim
-        self.key_dim = input_size
+        self.key_dim = key_dim
+        # self.key_dim = input_size
         self.key_num_per_cls = key_num_per_cls
         self.inf = inf
         self.bbox_pred = Linear(input_size, num_bbox_reg_classes * box_dim)
         self.enable_attention = enable_attention
         self.ft = ft
         self.cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
-        # self.attention_query = Linear(input_size,self.key_dim)
-        self.attention_query = nn.Identity()
+        self.attention_query = Linear(input_size,self.key_dim)
+        # self.attention_query = nn.Identity()
         self.attention_key = Linear(1,(num_classes+1)*key_num_per_cls*self.key_dim)
         self.attention_value = Linear(1,(num_classes+1)*key_num_per_cls*input_size)
 
@@ -758,6 +761,7 @@ class FastRCNNOutputLayers(nn.Module):
             losses = dict()
             losses["current_memory_loss"] = 0
             return losses
+        scores_cur = scores_cur.softmax(dim=1)
 
         gt_classes = torch.cat([p.gt_classes for p in proposals])
         losses = dict()
@@ -777,17 +781,20 @@ class FastRCNNOutputLayers(nn.Module):
 
             if out_features_prev.dim() > 2:
                 out_features_prev = torch.flatten(out_features_prev, start_dim=1)
-            scores_prev = self.cls_score(out_features_prev)
+            scores_prev_without_softmax = self.cls_score(out_features_prev)
+            scores_prev = scores_prev_without_softmax.softmax(dim=1)
             prev_cls_score_prev = scores_prev[:,:self.prev_intro_cls]
             unk_bg_cls_score_prev = scores_prev[:,self.num_classes-1:self.num_classes+1]
             prev_cls_score_cur = scores_cur[:,:self.prev_intro_cls]
             cur_cls_score_cur = scores_cur[:,self.prev_intro_cls:self.seen_classes]
-            unk_bg_cls_score_cur = scores_cur[:,self.num_classes-1:self.num_classes+1]
-            unk_bg_cls_score_cur[:,-2] += cur_cls_score_cur.sum(dim=1)
+            # unk_bg_cls_score_cur = scores_cur[:,self.num_classes-1:self.num_classes+1]
+            # print(cur_cls_score_cur.sum(dim=1).size())
+            unk_bg_cls_score_cur = torch.cat([cur_cls_score_cur.sum(dim=1,keepdim=True)+scores_cur[:,self.num_classes-1].unsqueeze(1),scores_cur[:,self.num_classes].unsqueeze(1)],dim=1)
             gt_classes_for_prev = gt_classes.new_full(gt_classes.size(),self.num_classes-1)
             gt_classes_for_prev[gt_classes == self.num_classes] = self.num_classes
             kd_loss = F.kl_div(prev_cls_score_cur.log(),prev_cls_score_prev) + F.kl_div(unk_bg_cls_score_cur.log(),unk_bg_cls_score_prev)
-            losses['prev_cls_loss'] = F.cross_entropy(scores_prev,gt_classes_for_prev)
+            # scores_prev[:,self.seen_classes:self.num_classes-1] = -10e10
+            losses['prev_cls_loss'] = F.cross_entropy(scores_prev_without_softmax,gt_classes_for_prev)
             losses['kd_loss'] = kd_loss
             return losses
 
@@ -796,6 +803,7 @@ class FastRCNNOutputLayers(nn.Module):
         #fix K_Prev and V_Prev
         prev_idx = torch.arange(len(gt_classes))[gt_classes < self.prev_intro_cls]
         if len(prev_idx) == 0:
+            losses['ft_loss'] = 0
             return losses
         input_features_prev = input_features[prev_idx,:]
         Q_Prev = self.attention_query(input_features_prev).reshape(-1,self.key_dim)
@@ -806,6 +814,7 @@ class FastRCNNOutputLayers(nn.Module):
         out_features_prev = out_features_prev.matmul(V_Prev)
         scores_prev = self.cls_score(out_features_prev)
         # losses["prev_memory_loss"] = F.mse_loss(input_features_prev, out_features_prev)
+        scores_prev[:, self.seen_classes:self.num_classes - 1] = -10e10
         losses["ft_loss"] = F.cross_entropy(scores_prev, gt_classes[prev_idx])
         return losses
 

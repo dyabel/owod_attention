@@ -47,21 +47,21 @@ python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/
 #if [[ ! -d "$Path" ]]; then
 #  rm -r $Path
 #fi
-cp -r output/t2_ft_b8 output/t3_b8
-
-python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52127' --resume --config-file ./configs/OWOD/t3/t3_train_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_b8" MODEL.WEIGHTS "output/t3_b8/model_final.pth"
+#cp -r output/t2_ft_b8 output/t3_b8
+#
+#python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52127' --resume --config-file ./configs/OWOD/t3/t3_train_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_b8" MODEL.WEIGHTS "output/t3_b8/model_final.pth"
 
 #Path="output/t3_ft_b8"
 #if [[ ! -d "$Path" ]]; then
 #  rm -r $Path
 #fi
-cp -r output/t3_b8 output/t3_ft_b8
-
-python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52126' --resume --config-file ./configs/OWOD/t3/t3_ft_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_ft_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
-
-python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52133' --config-file ./configs/OWOD/t3/t3_val_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OWOD.TEMPERATURE 1.5 OUTPUT_DIR "./output/t3_final_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
-
-python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/t3/t3_test_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_final_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
+#cp -r output/t3_b8 output/t3_ft_b8
+#
+#python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52126' --resume --config-file ./configs/OWOD/t3/t3_ft_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_ft_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
+#
+#python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52133' --config-file ./configs/OWOD/t3/t3_val_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OWOD.TEMPERATURE 1.5 OUTPUT_DIR "./output/t3_final_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
+#
+#python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/t3/t3_test_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t3_final_b8" MODEL.WEIGHTS "output/t3_ft_b8/model_final.pth"
 
 
 # Task 4
@@ -69,16 +69,16 @@ python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/
 #if [[ ! -d "$Path" ]]; then
 #  rm -r $Path
 #fi
-cp -r output/t3_ft_b8 output/t4_b8
-
-python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52127' --resume --config-file ./configs/OWOD/t4/t4_train_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_b8" MODEL.WEIGHTS "output/t4_b8/model_final.pth"
+#cp -r output/t3_ft_b8 output/t4_b8
+#
+#python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52127' --resume --config-file ./configs/OWOD/t4/t4_train_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_b8" MODEL.WEIGHTS "output/t4_b8/model_final.pth"
 
 #Path="output/t4_ft_b8"
 #if [[ ! -d "$Path" ]]; then
 #  rm -r $Path
 #fi
-cp -r output/t4_b8 output/t4_ft_b8
-
-python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52126' --resume --config-file ./configs/OWOD/t4/t4_ft_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_ft_b8" MODEL.WEIGHTS "output/t4_ft_b8/model_final.pth"
-
-python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/t4/t4_test_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_final_b8" MODEL.WEIGHTS "output/t4_ft_b8/model_final.pth"
+#cp -r output/t4_b8 output/t4_ft_b8
+#
+#python tools/train_net.py --num-gpus 8 --dist-url='tcp://127.0.0.1:52126' --resume --config-file ./configs/OWOD/t4/t4_ft_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_ft_b8" MODEL.WEIGHTS "output/t4_ft_b8/model_final.pth"
+#
+#python tools/train_net.py --num-gpus 8 --eval-only --config-file ./configs/OWOD/t4/t4_test_b8.yaml SOLVER.IMS_PER_BATCH 8 SOLVER.BASE_LR 0.01 OUTPUT_DIR "./output/t4_final_b8" MODEL.WEIGHTS "output/t4_ft_b8/model_final.pth"
